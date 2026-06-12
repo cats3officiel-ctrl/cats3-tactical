@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>CATS 3 — HQ MONITOR v4</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root {
+    --bg:#030508; --pnl:#080c14; --acc:#1a6fff;
+    --on:#00ff55; --off:#3a4455; --rec:#00f5d4;
+    --hq:#ffdd00; --pvt:#bb44ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:#55aaff;font-family:'Share Tech Mono',monospace;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+/* ── HEADER ── */
+header{height:46px;background:#000;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:2px solid var(--acc);flex-shrink:0;}
+#ws-dot{width:8px;height:8px;border-radius:50%;background:#555;display:inline-block;margin-right:8px;transition:background .3s;}
+#ws-dot.on{background:var(--on);box-shadow:0 0 6px var(--on);}
+#ws-dot.off{background:#f00;}
+#agent-count{font-size:11px;color:var(--on);border:1px solid var(--on);padding:2px 8px;}
+#clock{font-family:'Orbitron';font-size:13px;}
+
+/* ── GRILLE ── */
+#main{flex:1;display:grid;grid-template-columns:210px 1fr 310px 340px;gap:4px;padding:4px;overflow:hidden;min-height:0;}
+.col{display:flex;flex-direction:column;gap:4px;min-height:0;}
+
+/* ── PANELS ── */
+.panel{background:var(--pnl);border:1px solid #1a2538;display:flex;flex-direction:column;overflow:hidden;}
+.phdr{background:#0c1424;padding:8px 10px;font-size:10px;font-weight:bold;border-bottom:1px solid #1a2538;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;flex-shrink:0;}
+.pbody{flex:1;overflow-y:auto;padding:8px;}
+.pbody::-webkit-scrollbar{width:3px;}
+.pbody::-webkit-scrollbar-thumb{background:var(--acc);}
+
+/* ── QR SIDEBAR ── */
+.qr-container{display:flex;flex-direction:column;gap:6px;}
+.qr-card{background:#000;padding:6px;text-align:center;font-size:10px;border:1px solid #141e33;}
+.qr-card input{width:100%;background:#0a0f1d;border:1px solid var(--acc);color:#fff;text-align:center;font-family:inherit;font-size:10px;padding:2px;margin-bottom:4px;}
+.qr-holder{display:flex;justify-content:center;background:white;padding:3px;width:90px;height:90px;margin:0 auto;}
+
+/* ── RADAR BOX ── */
+#radar-box{background:#000;flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;}
+#radarCanvas{max-width:100%;max-height:100%;}
+.radar-zoom{position:absolute;bottom:8px;right:8px;display:flex;flex-direction:column;gap:3px;}
+.radar-zoom button{background:#0c1424;border:1px solid var(--acc);color:var(--acc);width:26px;height:26px;cursor:pointer;font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center;}
+.radar-zoom button:hover{background:var(--acc);color:#000;}
+#radar-range{position:absolute;top:8px;left:8px;font-size:10px;color:rgba(26,111,255,.7);background:rgba(0,0,0,.6);padding:2px 6px;}
+
+/* ── VIDEO GRID ── */
+#video-grid{height:155px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex-shrink:0;background:#000;border-top:2px solid var(--acc);}
+.vp{background:#04070f;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;border:1px solid #111a2e;}
+.vp:hover{border-color:var(--acc);}
+.vp img{width:100%;height:100%;object-fit:cover;}
+.vp-label{position:absolute;top:0;left:0;right:0;background:rgba(0,0,0,.8);color:var(--rec);font-size:9px;padding:2px 4px;display:flex;align-items:center;gap:3px;}
+.vp-label .live-dot{width:6px;height:6px;border-radius:50%;background:red;animation:blink .6s infinite alternate;}
+.vp-empty{color:#1a2538;font-size:10px;text-align:center;}
+@keyframes blink{from{opacity:.5}to{opacity:1}}
+
+/* ── FULLSCREEN OVERLAY ── */
+#fs-overlay{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:999;display:none;flex-direction:column;align-items:center;justify-content:center;}
+#fs-overlay img{max-width:95vw;max-height:85vh;object-fit:contain;}
+#fs-label{color:var(--rec);font-size:13px;margin-bottom:10px;}
+#fs-close{position:absolute;top:15px;right:20px;background:#300;color:#f99;border:1px solid red;padding:6px 14px;cursor:pointer;font-family:inherit;}
+
+/* ── AGENTS ── */
+.group-sector{margin-bottom:10px;border:1px solid #111a2e;background:#05080f;padding:4px;}
+.group-title{font-size:10px;padding:4px;font-weight:bold;border-left:3px solid var(--acc);margin-bottom:4px;background:#0a1120;display:flex;justify-content:space-between;}
+.ag-card{background:#0d121c;margin-bottom:3px;padding:6px 8px;border-left:3px solid #1a6fff;display:flex;justify-content:space-between;align-items:center;font-size:11px;transition:opacity .3s;}
+.ag-card.off{opacity:.5;}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;}
+.dot.on{background:var(--on);box-shadow:0 0 4px var(--on);}
+.dot.off{background:var(--off);}
+.btn-nom{background:#112c44;color:#99ccff;border:1px solid var(--acc);font-size:8px;padding:2px 4px;cursor:pointer;margin-right:2px;}
+.btn-kick{background:#441111;color:#ff9999;border:1px solid red;font-size:8px;padding:2px 4px;cursor:pointer;}
+.btn-purge{background:#400;color:#f99;border:1px solid red;font-size:9px;cursor:pointer;padding:1px 6px;}
+
+/* ── COMMS ── */
+.feed-msg{font-size:11px;margin-bottom:6px;border-left:2px solid var(--acc);padding-left:7px;color:#ccc;animation:fi .2s ease;}
+.feed-msg.hq{border-left-color:var(--rec);}
+.feed-msg.pvt{border-left-color:var(--pvt);background:#0d0818;}
+.feed-msg .ft{font-size:9px;color:#445;}
+@keyframes fi{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+audio{width:100%;height:24px;margin-top:3px;}
+select{background:#000;color:#fff;border:1px solid var(--acc);padding:6px;font-family:inherit;width:100%;margin-bottom:4px;font-size:11px;}
+#hq-input{flex:1;background:#000;border:1px solid var(--acc);color:white;padding:5px;font-family:inherit;font-size:11px;}
+.btn-emit{background:var(--acc);border:none;color:white;padding:0 10px;cursor:pointer;font-family:inherit;font-weight:bold;font-size:11px;}
+.btn-mic-hq{background:var(--acc);color:white;border:none;padding:0 10px;font-size:15px;cursor:pointer;}
+.rec{background:red!important;animation:pulse .5s infinite alternate;}
+@keyframes pulse{from{opacity:.6}to{opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- Fullscreen vidéo -->
+<div id="fs-overlay" onclick="closeFs()">
+    <button id="fs-close" onclick="closeFs()">✕ FERMER</button>
+    <div id="fs-label"></div>
+    <img id="fs-img" src="" alt="">
+</div>
+
+<header>
+    <div style="display:flex;align-items:center;font-family:'Orbitron';font-size:12px;">
+        <span id="ws-dot"></span> CATS 3 — HQ MONITOR v4.0
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <span id="agent-count">AGENTS: 0/0</span>
+        <span id="clock"></span>
+    </div>
+</header>
+
+<div id="main">
+
+    <!-- COL 1 — QR (5 groupes) -->
+    <div class="col">
+        <div class="panel" style="height:100%">
+            <div class="phdr">QR GROUPES</div>
+            <div class="pbody qr-container">
+                <div class="qr-card"><input id="qn-1" value="INFANTERIE" onchange="buildQRs()"><div id="qr-1" class="qr-holder"></div></div>
+                <div class="qr-card"><input id="qn-2" value="LOGISTIQUE" onchange="buildQRs()"><div id="qr-2" class="qr-holder"></div></div>
+                <div class="qr-card"><input id="qn-3" value="MÉDIC"      onchange="buildQRs()"><div id="qr-3" class="qr-holder"></div></div>
+                <div class="qr-card"><input id="qn-4" value="RECO"       onchange="buildQRs()"><div id="qr-4" class="qr-holder"></div></div>
+                <div class="qr-card"><input id="qn-5" value="APPUI"      onchange="buildQRs()"><div id="qr-5" class="qr-holder"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COL 2 — Radar + Grille Vidéo -->
+    <div class="col">
+        <div class="panel" id="radar-box">
+            <div id="radar-range">PORTÉE: 5km</div>
+            <canvas id="radarCanvas"></canvas>
+            <div class="radar-zoom">
+                <button onclick="zoomIn()" title="Zoom +">+</button>
+                <button onclick="zoomOut()" title="Zoom -">−</button>
+            </div>
+        </div>
+        <div id="video-grid">
+            <div class="vp" id="vp-0"><div class="vp-empty">[ NO FEED ]</div></div>
+            <div class="vp" id="vp-1"><div class="vp-empty">[ NO FEED ]</div></div>
+            <div class="vp" id="vp-2"><div class="vp-empty">[ NO FEED ]</div></div>
+            <div class="vp" id="vp-3"><div class="vp-empty">[ NO FEED ]</div></div>
+            <div class="vp" id="vp-4"><div class="vp-empty">[ NO FEED ]</div></div>
+        </div>
+    </div>
+
+    <!-- COL 3 — Unités -->
+    <div class="col">
+        <div class="panel" style="height:100%">
+            <div class="phdr">UNITÉS SECTORISÉES</div>
+            <div class="pbody" id="group-lists"></div>
+        </div>
+    </div>
+
+    <!-- COL 4 — Comms -->
+    <div class="col">
+        <div class="panel" style="height:100%">
+            <div class="phdr">COMMUNICATIONS <button class="btn-purge" onclick="hqAction('PURGE')">PURGE</button></div>
+            <div class="pbody" id="msg-feed"></div>
+            <div style="padding:8px;background:#05080f;border-top:1px solid #1a2538;flex-shrink:0;">
+                <label style="font-size:9px;color:#667;display:block;margin-bottom:3px;">CIBLE :</label>
+                <select id="radio-target">
+                    <option value="ALL/ALL">🌍 CANAL GÉNÉRAL</option>
+                    <optgroup label="SECTEURS" id="opt-grps"></optgroup>
+                    <optgroup label="AGENTS" id="opt-agts"></optgroup>
+                </select>
+                <div style="display:flex;gap:4px;height:36px;">
+                    <button class="btn-mic-hq" id="hq-mic" onclick="toggleHqMic()">🎤</button>
+                    <input id="hq-input" placeholder="Message tactique..." onkeydown="if(event.key==='Enter')sendHq()">
+                    <button class="btn-emit" onclick="sendHq()">ÉMETTRE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════════════════════════════
+let socket;
+let agents      = [];
+let lerpAgents  = {};
+let agentTrails = {};   // { id: [{lat,lng}] } – 30 points max
+let videoFrames = {};   // { agentId: {frame,sender,lastUpdate} }
+let videoSlots  = [null,null,null,null,null]; // 5 emplacements vidéo
+let audioCtx    = null;
+let isHqRec     = false, hqRecorder = null, hqChunks = [];
+
+// Zoom radar
+const ZOOM_LEVELS = [200, 500, 1000, 2000, 5000, 10000, 20000];
+let zoomIdx = 4; // défaut 5000m
+function zoomIn()  { if(zoomIdx>0) zoomIdx--; updateZoomLabel(); }
+function zoomOut() { if(zoomIdx<ZOOM_LEVELS.length-1) zoomIdx++; updateZoomLabel(); }
+function updateZoomLabel() {
+    const m = ZOOM_LEVELS[zoomIdx];
+    document.getElementById('radar-range').innerText =
+        `PORTÉE: ${m>=1000?(m/1000).toFixed(m%1000?1:0)+'km':m+'m'}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  QR CODES — utilise window.location.origin (toujours correct, même en HTTPS)
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildQRs() {
+    const base = window.location.origin; // ex: https://cats3.onrender.com
+    for(let i=1;i<=5;i++){
+        const role = document.getElementById(`qn-${i}`).value.toUpperCase().trim();
+        const url  = `${base}/unite.html?role=${encodeURIComponent(role)}`;
+        document.getElementById(`qr-${i}`).innerHTML = '';
+        new QRCode(document.getElementById(`qr-${i}`),{text:url,width:90,height:90,correctLevel:QRCode.CorrectLevel.L});
+    }
+    buildTargetOptions();
+}
+
+function buildTargetOptions() {
+    const og = document.getElementById('opt-grps');
+    og.innerHTML = '';
+    for(let i=1;i<=5;i++){
+        const g = document.getElementById(`qn-${i}`).value.toUpperCase().trim();
+        og.innerHTML += `<option value="GROUP/${g}">🔊 ${g}</option>`;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════════════
+function connectWS() {
+    const dot   = document.getElementById('ws-dot');
+    dot.className = 'off';
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    socket      = new WebSocket(`${proto}://${window.location.host}`);
+
+    socket.onopen = () => {
+        dot.className = 'on';
+        socket.send(JSON.stringify({type:'REGISTER_HQ'}));
+    };
+    socket.onclose  = () => { dot.className='off'; setTimeout(connectWS,2000); };
+    socket.onerror  = () => { dot.className='off'; };
+
+    socket.onmessage = e => {
+        const d = JSON.parse(e.data);
+
+        if(d.type==='INIT_THEATRE'){
+            agents = d.agents;
+            document.getElementById('msg-feed').innerHTML='';
+            d.messages.forEach(m=>renderMsg(m));
+            // Restaure les flux vidéo actifs si HQ se reconnecte
+            if(d.videoStreams) d.videoStreams.forEach(vs=>ingestFrame(vs));
+        }
+        if(d.type==='SYNC')  agents = d.agents;
+        if(d.type==='FORCE_UPDATE') updateAgent(d.agent);
+        if(d.type==='NEW_MSG'){ renderMsg(d.message); beep(d.message.targetType==='PRIVATE'?1200:800); }
+        if(d.type==='LIVE_FEED')   ingestFrame(d);
+        if(d.type==='STREAM_ENDED') killStream(d.agentId);
+        if(d.type==='CLEARED')  document.getElementById('msg-feed').innerHTML='';
+
+        renderAgents();
+        renderAgentCount();
+        renderTargetAgents();
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  AGENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateAgent(a) {
+    const idx = agents.findIndex(x=>x.id===a.id);
+    if(idx!==-1){
+        // Trace de déplacement — enregistre chaque position GPS réelle
+        if(a.lat!==0||a.lng!==0){
+            if(!agentTrails[a.id]) agentTrails[a.id]=[];
+            const tr = agentTrails[a.id];
+            const last = tr[tr.length-1];
+            if(!last || Math.abs(last.lat-a.lat)>0.000005 || Math.abs(last.lng-a.lng)>0.000005){
+                tr.push({lat:a.lat,lng:a.lng});
+                if(tr.length>30) tr.shift();
+            }
+        }
+        agents[idx]=a;
+    } else { agents.push(a); }
+}
+
+function renderAgentCount() {
+    const on = agents.filter(a=>a.status==='En Ligne').length;
+    const el = document.getElementById('agent-count');
+    el.innerText=`AGENTS: ${on}/${agents.length}`;
+    el.style.color=el.style.borderColor=on>0?'var(--on)':'#f00';
+}
+
+const ROLE_COLORS = {INFANTERIE:'#1a6fff',LOGISTIQUE:'#bb44ff','MÉDIC':'#00dd55',RECO:'#00f5d4',APPUI:'#ff8800'};
+function getRoleColor(r){ return ROLE_COLORS[r]||'#4a90d9'; }
+
+function renderAgents() {
+    const container = document.getElementById('group-lists');
+    container.innerHTML='';
+
+    // Construire structure des 5 groupes
+    const structs={};
+    for(let i=1;i<=5;i++) structs[document.getElementById(`qn-${i}`).value.toUpperCase().trim()]=[];
+    agents.forEach(a=>{ if(!structs[a.role])structs[a.role]=[]; structs[a.role].push(a); });
+
+    Object.keys(structs).forEach(g=>{
+        const members=structs[g];
+        const on=members.filter(a=>a.status==='En Ligne').length;
+        const col=getRoleColor(g);
+        const sec=document.createElement('div'); sec.className='group-sector';
+        sec.innerHTML=`<div class="group-title" style="border-left-color:${col}">
+            <span>${g}</span>
+            <span style="color:${on>0?'var(--on)':'var(--off)'};">${on}/${members.length}</span>
+        </div>`;
+        members.forEach(a=>{
+            const isOn=a.status==='En Ligne';
+            sec.innerHTML+=`<div class="ag-card ${isOn?'':'off'}" style="border-left-color:${col}">
+                <div>
+                    <span class="dot ${isOn?'on':'off'}"></span>
+                    <strong>${a.name}</strong>
+                    <br><small style="color:#445;margin-left:10px;">${a.status}${a.lat?'  GPS✓':''}${a.accuracy?' ±'+Math.round(a.accuracy)+'m':''}</small>
+                </div>
+                <div>
+                    <button class="btn-nom" onclick="renameAgent('${a.id}')">NOM</button>
+                    <button class="btn-kick" onclick="hqAction('KICK','${a.id}')">KICK</button>
+                </div>
+            </div>`;
+        });
+        if(!members.length) sec.innerHTML+=`<div style="font-size:9px;color:#1a2538;padding:4px 8px;font-style:italic;">— vide —</div>`;
+        container.appendChild(sec);
+    });
+}
+
+function renderTargetAgents() {
+    const oa=document.getElementById('opt-agts');
+    const cur=document.getElementById('radio-target').value;
+    oa.innerHTML='';
+    agents.forEach(a=>{ oa.innerHTML+=`<option value="PRIVATE/${a.id}">👤 ${a.name} (${a.role})</option>`; });
+    try{ document.getElementById('radio-target').value=cur; }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  VIDÉO MULTI-STREAM
+// ═══════════════════════════════════════════════════════════════════════════════
+function getOrAssignSlot(agentId){
+    let s=videoSlots.findIndex(x=>x===agentId);
+    if(s!==-1) return s;
+    s=videoSlots.findIndex(x=>x===null);
+    if(s!==-1){ videoSlots[s]=agentId; return s; }
+    // Tous occupés → remplace le plus ancien
+    let oldest=0,oldestT=Infinity;
+    videoSlots.forEach((aid,i)=>{ const t=videoFrames[aid]?.lastUpdate||0; if(t<oldestT){oldestT=t;oldest=i;} });
+    videoSlots[oldest]=agentId;
+    return oldest;
+}
+
+function ingestFrame({agentId,frame,sender}){
+    videoFrames[agentId]={frame,sender,lastUpdate:Date.now()};
+    const slot=getOrAssignSlot(agentId);
+    const panel=document.getElementById(`vp-${slot}`);
+    if(!panel) return;
+    let img=panel.querySelector('img');
+    if(!img){
+        panel.innerHTML=`<div class="vp-label"><span class="live-dot"></span>${sender}</div><img>`;
+        img=panel.querySelector('img');
+        img.onclick=()=>openFs(agentId);
+    }
+    img.src=frame;
+    panel.querySelector('.vp-label').innerHTML=`<span class="live-dot"></span>${sender}`;
+}
+
+function killStream(agentId){
+    const s=videoSlots.findIndex(x=>x===agentId);
+    if(s===-1) return;
+    videoSlots[s]=null;
+    delete videoFrames[agentId];
+    const panel=document.getElementById(`vp-${s}`);
+    if(panel) panel.innerHTML=`<div class="vp-empty">[ NO FEED ]</div>`;
+    const fs=document.getElementById('fs-overlay');
+    if(fs.style.display==='flex'&&fs.dataset.aid===agentId) closeFs();
+}
+
+// Nettoyage flux silencieux côté client (sécurité)
+setInterval(()=>{
+    const now=Date.now();
+    videoSlots.forEach((aid,s)=>{
+        if(!aid) return;
+        if(!videoFrames[aid]||now-videoFrames[aid].lastUpdate>5000) killStream(aid);
+    });
+},3000);
+
+function openFs(agentId){
+    const fs=document.getElementById('fs-overlay');
+    fs.style.display='flex'; fs.dataset.aid=agentId;
+    const d=videoFrames[agentId];
+    if(d){ document.getElementById('fs-img').src=d.frame; document.getElementById('fs-label').innerText='LIVE : '+d.sender; }
+}
+// Mise à jour image plein écran
+setInterval(()=>{
+    const fs=document.getElementById('fs-overlay');
+    if(fs.style.display!=='flex') return;
+    const d=videoFrames[fs.dataset.aid];
+    if(d){ document.getElementById('fs-img').src=d.frame; document.getElementById('fs-label').innerText='LIVE : '+d.sender; }
+},300);
+function closeFs(){ document.getElementById('fs-overlay').style.display='none'; }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  COMMUNICATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function getTarget(){
+    const v=document.getElementById('radio-target').value.split('/');
+    return {type:v[0],id:v.slice(1).join('/')};
+}
+
+function sendHq(){
+    const inp=document.getElementById('hq-input');
+    if(!inp.value.trim()||!socket||socket.readyState!==WebSocket.OPEN) return;
+    const t=getTarget();
+    socket.send(JSON.stringify({type:'TACTICAL_MSG',time:new Date().toLocaleTimeString('fr-FR'),
+        role:'HQ',sender:`QG→[${t.id}]`,msgType:'text',content:inp.value.trim(),
+        targetType:t.type,targetId:t.id}));
+    inp.value='';
+}
+
+async function toggleHqMic(){
+    const btn=document.getElementById('hq-mic');
+    if(!isHqRec){
+        try{
+            const st=await navigator.mediaDevices.getUserMedia({audio:true});
+            hqRecorder=new MediaRecorder(st); hqChunks=[];
+            hqRecorder.ondataavailable=e=>hqChunks.push(e.data);
+            hqRecorder.onstop=()=>{
+                const blob=new Blob(hqChunks,{type:'audio/webm'});
+                const t=getTarget(); const r=new FileReader(); r.readAsDataURL(blob);
+                r.onloadend=()=>{
+                    if(socket.readyState===WebSocket.OPEN)
+                        socket.send(JSON.stringify({type:'TACTICAL_MSG',time:new Date().toLocaleTimeString('fr-FR'),
+                            role:'HQ',sender:`QG VOCAL→[${t.id}]`,msgType:'voice',content:r.result,
+                            targetType:t.type,targetId:t.id}));
+                };
+                st.getTracks().forEach(x=>x.stop());
+            };
+            hqRecorder.start(); isHqRec=true; btn.classList.add('rec');
+        }catch(e){ alert('Micro indisponible'); }
+    }else{
+        if(hqRecorder) hqRecorder.stop(); isHqRec=false; btn.classList.remove('rec');
+    }
+}
+
+function hqAction(action,targetId=null,extra={}){
+    if(socket&&socket.readyState===WebSocket.OPEN)
+        socket.send(JSON.stringify({type:'HQ_ACTION',action,targetId,...extra}));
+}
+
+function renameAgent(id){
+    const a=agents.find(x=>x.id===id);
+    const name=prompt('Nouvel indicatif :',a?a.name:'');
+    if(name&&name.trim()) hqAction('RENAME',id,{newName:name.trim().toUpperCase()});
+}
+
+function renderMsg(m){
+    const feed=document.getElementById('msg-feed');
+    const div=document.createElement('div');
+    div.className='feed-msg'+(m.role==='HQ'?' hq':'')+(m.targetType==='PRIVATE'?' pvt':'');
+    const tag=m.targetType==='PRIVATE'?' 🔒':m.targetType==='GROUP'?` [${m.targetId}]`:'';
+    div.innerHTML=`<div class="ft">[${m.time}]${tag}</div><strong>${m.sender}:</strong> `+
+        (m.msgType==='voice'?`<audio src="${m.content}" controls></audio>`:`<span style="color:#bbb">${m.content}</span>`);
+    feed.appendChild(div); feed.scrollTop=feed.scrollHeight;
+}
+
+function beep(freq=800,dur=0.2){
+    try{
+        if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.value=freq;
+        g.gain.setValueAtTime(.25,audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur);
+        o.start(); o.stop(audioCtx.currentTime+dur);
+    }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RADAR — zoom + traces + cercle précision
+// ═══════════════════════════════════════════════════════════════════════════════
+function drawRadar(){
+    const canvas=document.getElementById('radarCanvas');
+    if(!canvas) return;
+    const ctx=canvas.getContext('2d');
+    canvas.width=500; canvas.height=500;
+    const cx=250,cy=250,r=230;
+    let sweep=0;
+
+    // Helper : coordonnées géo → pixel écran
+    function geo2px(lat,lng,hqLat,hqLng,range){
+        const dY=(lat-hqLat)*111111;
+        const dX=(lng-hqLng)*111111*Math.cos(hqLat*Math.PI/180);
+        return {x:cx+(dX/range)*r, y:cy-(dY/range)*r};
+    }
+
+    function loop(){
+        const RANGE=ZOOM_LEVELS[zoomIdx];
+        ctx.clearRect(0,0,500,500);
+
+        // Fond circulaire
+        ctx.fillStyle='rgba(0,4,10,.97)';
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+
+        // Cercles + distances
+        [.25,.5,.75,1].forEach(p=>{
+            ctx.strokeStyle=`rgba(26,111,255,${p===1?.3:.15})`;
+            ctx.lineWidth=p===1?1.5:1;
+            ctx.beginPath(); ctx.arc(cx,cy,r*p,0,Math.PI*2); ctx.stroke();
+            if(p<1){
+                const m=RANGE*p;
+                const lbl=m>=1000?`${(m/1000).toFixed(m%1000?1:0)}km`:`${m}m`;
+                ctx.fillStyle='rgba(26,111,255,.45)'; ctx.font='9px Share Tech Mono';
+                ctx.fillText(lbl,cx+r*p-18,cy+11);
+            }
+        });
+
+        // Lignes croisées
+        ctx.strokeStyle='rgba(26,111,255,.08)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx,cy-r); ctx.lineTo(cx,cy+r); ctx.stroke();
+
+        // Balayage
+        sweep=(sweep+0.018)%(Math.PI*2);
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(cx,cy);
+        ctx.arc(cx,cy,r,sweep-Math.PI/3.5,sweep); ctx.closePath();
+        ctx.fillStyle='rgba(26,111,255,.05)'; ctx.fill();
+        ctx.strokeStyle='rgba(26,111,255,.65)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(cx,cy);
+        ctx.lineTo(cx+Math.cos(sweep)*r,cy+Math.sin(sweep)*r); ctx.stroke();
+        ctx.restore();
+
+        // Référence HQ
+        let hqLat=14.4974,hqLng=-14.4524;
+        const gpsA=agents.find(a=>a.lat!==0&&a.lng!==0&&a.status==='En Ligne');
+        if(gpsA){hqLat=gpsA.lat;hqLng=gpsA.lng;}
+
+        // Traces de déplacement
+        agents.forEach(a=>{
+            const tr=agentTrails[a.id]||[];
+            if(tr.length<2) return;
+            ctx.save(); ctx.lineWidth=1.5;
+            for(let i=1;i<tr.length;i++){
+                const from=geo2px(tr[i-1].lat,tr[i-1].lng,hqLat,hqLng,RANGE);
+                const to  =geo2px(tr[i].lat,  tr[i].lng,  hqLat,hqLng,RANGE);
+                const alpha=(i/tr.length)*0.55;
+                ctx.strokeStyle=`rgba(0,255,85,${alpha})`;
+                ctx.beginPath(); ctx.moveTo(from.x,from.y); ctx.lineTo(to.x,to.y); ctx.stroke();
+            }
+            ctx.restore();
+        });
+
+        // Point QG
+        ctx.fillStyle=`rgba(255,221,0,0.9)`;
+        ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#aaa'; ctx.font='9px Share Tech Mono';
+        ctx.fillText('QG',cx+8,cy+4);
+
+        // Agents
+        agents.forEach((a,idx)=>{
+            let lat=a.lat,lng=a.lng;
+            const hasGps=lat!==0||lng!==0;
+            if(!hasGps){
+                lat=hqLat+0.0004*Math.sin(idx*1.5);
+                lng=hqLng+0.0004*Math.cos(idx*1.5);
+            }
+
+            // Lerp pour déplacements fluides
+            if(!lerpAgents[a.id]) lerpAgents[a.id]={lat,lng};
+            lerpAgents[a.id].lat+=(lat-lerpAgents[a.id].lat)*0.1;
+            lerpAgents[a.id].lng+=(lng-lerpAgents[a.id].lng)*0.1;
+
+            const p=geo2px(lerpAgents[a.id].lat,lerpAgents[a.id].lng,hqLat,hqLng,RANGE);
+            if(Math.hypot(p.x-cx,p.y-cy)>r) return;
+
+            const isOn=a.status==='En Ligne';
+            const col=isOn?getRoleColor(a.role):'#3a4455';
+
+            // Cercle de précision GPS
+            if(hasGps&&a.accuracy>0&&isOn){
+                const accPx=(a.accuracy/RANGE)*r;
+                if(accPx<r&&accPx>2){
+                    ctx.beginPath(); ctx.arc(p.x,p.y,accPx,0,Math.PI*2);
+                    ctx.strokeStyle='rgba(0,255,85,.12)'; ctx.lineWidth=1; ctx.stroke();
+                    ctx.fillStyle='rgba(0,255,85,.03)'; ctx.fill();
+                }
+            }
+
+            // Halo si en ligne
+            if(isOn){
+                ctx.beginPath(); ctx.arc(p.x,p.y,11,0,Math.PI*2);
+                ctx.fillStyle=col.replace('#','rgba(').replace(/^rgba\((..)(..)(..)$/,(m,r,g,b)=>`rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},.12)`)||'rgba(26,111,255,.12)';
+                ctx.fill();
+            }
+
+            // Point agent
+            ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2);
+            ctx.fillStyle=col; ctx.fill();
+            if(isOn){ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;ctx.stroke();}
+
+            // Nom
+            ctx.fillStyle=isOn?'#eee':'#445';
+            ctx.font='bold 11px Share Tech Mono';
+            ctx.fillText(a.name,p.x+9,p.y+4);
+            if(hasGps){
+                ctx.fillStyle='rgba(0,255,85,.55)';
+                ctx.font='8px Share Tech Mono';
+                ctx.fillText('GPS',p.x+9,p.y+13);
+            }
+        });
+
+        requestAnimationFrame(loop);
+    }
+    loop();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+setInterval(()=>{
+    document.getElementById('clock').innerText=new Date().toLocaleTimeString('fr-FR');
+},1000);
+
+window.onload=()=>{
+    buildQRs();
+    connectWS();
+    drawRadar();
+};
+</script>
+</body>
+</html>

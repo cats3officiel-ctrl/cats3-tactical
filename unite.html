@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0f19">
+<link rel="manifest" href="/manifest.json">
+<title>CATS 3 — TERMINAL TERRAIN</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:#020406;color:#fff;font-family:sans-serif;}
+.wrapper{display:flex;flex-direction:column;height:100%;width:100%;}
+
+/* ── HEADER ── */
+#header{background:#000;padding:10px 14px;border-bottom:2px solid #1a6fff;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+#role-lbl{font-weight:bold;font-size:14px;letter-spacing:1px;}
+#hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+#conn-st{font-size:10px;padding:2px 7px;border:1px solid #445;color:#445;transition:all .3s;}
+#conn-st.connected{border-color:#00ff55;color:#00ff55;}
+#conn-st.disconnected{border-color:#f00;color:#f00;}
+#conn-st.banned{border-color:#f00;color:#f00;background:#200;}
+#gps-st{font-size:10px;color:#445;}
+#gps-st.ok{color:#00dd55;}
+#gps-st.denied{color:#ff4400;}
+
+/* ── ALERTE ── */
+#alert-bar{background:red;color:#fff;padding:8px;text-align:center;font-size:11px;font-weight:bold;display:none;animation:blink .7s infinite;flex-shrink:0;}
+@keyframes blink{0%,100%{opacity:.85}50%{opacity:1}}
+
+/* ── CAMÉRA ── */
+#cam-box{height:130px;background:#000;border-bottom:1px solid #1a2538;display:none;flex-shrink:0;position:relative;}
+#preview{width:100%;height:100%;object-fit:cover;}
+#cam-lbl{position:absolute;top:4px;right:4px;background:rgba(255,0,0,.8);color:#fff;font-size:9px;padding:2px 5px;font-weight:bold;}
+
+/* ── CHAT ── */
+#chat{flex:1;overflow-y:auto;padding:10px;background:#04070f;-webkit-overflow-scrolling:touch;}
+#chat::-webkit-scrollbar{width:3px;}
+#chat::-webkit-scrollbar-thumb{background:#1a6fff;}
+.msg{margin-bottom:7px;font-size:13px;padding:9px 11px;background:#0d1321;border-left:3px solid #1a6fff;animation:fi .2s ease;}
+.msg.private{border-left-color:red;background:#1f0b0b;}
+.msg.own{border-left-color:#00f5d4;background:#031414;}
+.msg-t{font-size:9px;color:#445;margin-bottom:2px;}
+audio{width:100%;display:block;margin-top:4px;}
+@keyframes fi{from{opacity:0;transform:translateX(-4px)}to{opacity:1}}
+
+/* ── CONTRÔLES ── */
+.controls{background:#0a0f19;padding:9px 11px;border-top:1px solid #1a2538;flex-shrink:0;}
+.ctrl-row{display:flex;gap:5px;align-items:center;width:100%;}
+button{padding:10px;border:none;border-radius:4px;font-weight:bold;font-size:11px;text-transform:uppercase;cursor:pointer;}
+.btn-vid{background:#00f5d4;color:#000;flex-shrink:0;}
+.btn-mic{background:#1a6fff;color:#fff;flex-shrink:0;}
+.btn-hq{background:#441a00;color:#ffaa44;border:1px solid #773300;font-size:10px;flex-shrink:0;padding:10px 7px;}
+.btn-ok{background:#00ff55;color:#000;padding:10px 14px;flex-shrink:0;}
+#txt-in{flex:1;padding:10px;background:#000;color:#fff;border:1px solid #1a6fff;font-size:13px;border-radius:4px;outline:none;min-width:0;}
+.rec{background:red!important;animation:pulse .5s infinite alternate;}
+@keyframes pulse{from{opacity:.7}to{opacity:1}}
+#hq-mode-bar{display:none;font-size:10px;color:#ffaa44;text-align:center;padding:4px 0 0;}
+
+/* ── LOCK SCREEN ── */
+#lock-screen{position:fixed;inset:0;background:#080000;color:#ff3333;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;z-index:9999;font-family:monospace;}
+#lock-screen h1{font-size:20px;margin-bottom:14px;border:2px solid #ff3333;padding:10px 20px;letter-spacing:2px;}
+#lock-screen p{font-size:13px;color:#888;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="lock-screen">
+    <h1>⛔ ACCÈS INTERROMPU</h1>
+    <p>Votre terminal a été éjecté par le Commandement.<br><br>
+    <strong>Scannez à nouveau le QR Code du QG pour vous reconnecter.</strong></p>
+</div>
+
+<div class="wrapper" id="app-wrapper">
+    <div id="header">
+        <div>
+            <div id="role-lbl">INIT...</div>
+            <div style="font-size:9px;color:#334;margin-top:1px;" id="id-lbl"></div>
+        </div>
+        <div id="hdr-right">
+            <span id="conn-st">CONNEXION...</span>
+            <span id="gps-st">GPS: ATTENTE</span>
+        </div>
+    </div>
+    <div id="alert-bar">⚠️ MESSAGE DIRECT DU COMMANDEMENT ⚠️</div>
+    <div id="cam-box">
+        <video id="preview" autoplay muted playsinline></video>
+        <div id="cam-lbl">🔴 LIVE</div>
+    </div>
+    <div id="chat"></div>
+    <div class="controls">
+        <div class="ctrl-row">
+            <button class="btn-vid" id="vid-btn" onclick="toggleVideo()">📷 CAM</button>
+            <button class="btn-mic" id="mic-btn" onclick="toggleMic()">🎙 VOCAL</button>
+            <button class="btn-hq"  id="hq-btn"  onclick="toggleHqMode()">QG</button>
+            <input id="txt-in" type="text" placeholder="Message..." inputmode="text" onkeydown="if(event.key==='Enter')sendTxt()">
+            <button class="btn-ok" onclick="sendTxt()">OK</button>
+        </div>
+        <div id="hq-mode-bar">📡 MODE CONTACT QG — message direct au Commandement</div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//  VARIABLES (toutes déclarées explicitement)
+// ═══════════════════════════════════════════════════════════════════════════════
+let socket;
+let isVid    = false;
+let isRec    = false;
+let isHqMode = false;
+let isBanned = false;
+let stream   = null;
+let recorder = null;
+let chunks   = [];
+let vCtx     = null;
+let vInt     = null;
+
+// GPS keepalive
+let lastLat = 0, lastLng = 0, lastAcc = 0;
+
+// Identité
+const role = new URLSearchParams(window.location.search).get('role') || 'SABRE';
+let customCallsign = '';
+let id = sessionStorage.getItem('CATS_ID');
+if(!id){ id='ID-'+Math.random().toString(36).substr(2,4).toUpperCase(); sessionStorage.setItem('CATS_ID',id); }
+
+document.getElementById('role-lbl').innerText = role;
+document.getElementById('id-lbl').innerText   = id;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CONNEXION WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════════════
+function setConn(state){
+    const el=document.getElementById('conn-st');
+    el.className=state;
+    el.innerText=state==='connected'?'EN LIGNE':state==='banned'?'ÉJECTÉ':'HORS LIGNE';
+}
+
+function connect(){
+    if(isBanned) return;
+    setConn('disconnected');
+    const proto=location.protocol==='https:'?'wss':'ws';
+    socket=new WebSocket(`${proto}://${window.location.host}`);
+
+    socket.onopen=()=>{
+        setConn('connected');
+        customCallsign=customCallsign||(role+'_'+id);
+        socket.send(JSON.stringify({type:'REGISTER_DEVICE',agentId:id,callsign:customCallsign,role}));
+    };
+
+    socket.onmessage=e=>{
+        const d=JSON.parse(e.data);
+        if(d.type==='INIT_THEATRE'){
+            document.getElementById('chat').innerHTML='';
+            d.messages.forEach(m=>{if(shouldRender(m))render(m);});
+        }
+        if(d.type==='NEW_MSG'&&shouldRender(d.message)){ render(d.message); alertVisual(d.message); }
+        if(d.type==='CLEARED') document.getElementById('chat').innerHTML='';
+        if(d.type==='FORCE_UPDATE'&&d.agent.id===id){
+            customCallsign=d.agent.name;
+            document.getElementById('role-lbl').innerText=customCallsign;
+        }
+        if(d.type==='BAN_COMMAND'&&d.targetId===id){
+            isBanned=true;
+            sessionStorage.removeItem('CATS_ID');
+            if(socket) socket.close();
+            setConn('banned');
+            document.getElementById('app-wrapper').style.display='none';
+            document.getElementById('lock-screen').style.display='flex';
+        }
+    };
+
+    socket.onclose=()=>{ setConn('disconnected'); if(!isBanned) setTimeout(connect,1500); };
+    socket.onerror=()=>setConn('disconnected');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GPS — envoi toutes les 3s même si position inchangée (keepalive radar)
+// ═══════════════════════════════════════════════════════════════════════════════
+navigator.geolocation.watchPosition(
+    pos=>{
+        lastLat=pos.coords.latitude;
+        lastLng=pos.coords.longitude;
+        lastAcc=pos.coords.accuracy||0;
+        const el=document.getElementById('gps-st');
+        el.className='ok';
+        el.innerText=`📍 GPS ±${Math.round(lastAcc)}m`;
+        sendTelemetry();
+    },
+    err=>{
+        const msgs={1:'GPS: REFUSÉ',2:'GPS: INDISPONIBLE',3:'GPS: TIMEOUT'};
+        const el=document.getElementById('gps-st');
+        el.className='denied'; el.innerText=msgs[err.code]||'GPS: ERREUR';
+    },
+    {enableHighAccuracy:true,maximumAge:3000,timeout:10000}
+);
+
+// Keepalive GPS toutes les 3 secondes
+setInterval(()=>{
+    if(lastLat!==0||lastLng!==0) sendTelemetry();
+},3000);
+
+function sendTelemetry(){
+    if(!socket||socket.readyState!==WebSocket.OPEN||isBanned) return;
+    socket.send(JSON.stringify({type:'TELEMETRY',id,lat:lastLat,lng:lastLng,accuracy:lastAcc}));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MESSAGES
+// ═══════════════════════════════════════════════════════════════════════════════
+function shouldRender(m){
+    if(m.targetType==='ALL') return true;
+    if(m.targetType==='GROUP'  &&m.targetId===role) return true;
+    if(m.targetType==='PRIVATE'&&m.targetId===id)   return true;
+    if(m.sender&&m.sender.includes(customCallsign))  return true;
+    return false;
+}
+
+function alertVisual(m){
+    if(m.targetType==='PRIVATE'&&m.role==='HQ'){
+        const bar=document.getElementById('alert-bar');
+        bar.style.display='block';
+        if('vibrate'in navigator) navigator.vibrate([250,100,250]);
+        setTimeout(()=>{bar.style.display='none';},7000);
+    }
+}
+
+function render(m){
+    const c=document.getElementById('chat');
+    const div=document.createElement('div');
+    const isOwn=m.sender&&m.sender.includes(customCallsign);
+    div.className='msg'+(m.targetType==='PRIVATE'?' private':'')+(isOwn?' own':'');
+    div.innerHTML=`<div class="msg-t">[${m.time||''}]${m.targetType==='PRIVATE'?' 🔒 DIRECT':''}</div>`+
+        `<strong>${m.sender}:</strong> `+
+        (m.msgType==='voice'?`<audio src="${m.content}" controls></audio>`:`<span>${m.content}</span>`);
+    c.appendChild(div); c.scrollTop=c.scrollHeight;
+}
+
+function toggleHqMode(){
+    isHqMode=!isHqMode;
+    const bar=document.getElementById('hq-mode-bar');
+    const btn=document.getElementById('hq-btn');
+    const inp=document.getElementById('txt-in');
+    if(isHqMode){
+        bar.style.display='block'; btn.style.background='#884400';
+        inp.placeholder='Message direct au QG...'; inp.style.borderColor='#ffaa44';
+    }else{
+        bar.style.display='none'; btn.style.background='#441a00';
+        inp.placeholder='Message...'; inp.style.borderColor='#1a6fff';
+    }
+}
+
+function sendTxt(){
+    const inp=document.getElementById('txt-in');
+    if(!inp.value.trim()||isBanned||!socket||socket.readyState!==WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+        type:'TACTICAL_MSG',time:new Date().toLocaleTimeString('fr-FR'),
+        role,sender:customCallsign,msgType:'text',content:inp.value.trim(),
+        targetType:isHqMode?'PRIVATE':'ALL',
+        targetId  :isHqMode?'HQ':'ALL'
+    }));
+    inp.value='';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  VIDÉO
+// ═══════════════════════════════════════════════════════════════════════════════
+async function toggleVideo(){
+    const btn=document.getElementById('vid-btn');
+    if(!isVid){
+        try{
+            stream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240,frameRate:8},audio:false});
+            document.getElementById('preview').srcObject=stream;
+            document.getElementById('cam-box').style.display='block';
+            isVid=true; btn.style.background='#ff4400'; btn.innerText='⏹ STOP';
+            const canvas=document.createElement('canvas'); canvas.width=320; canvas.height=240;
+            vCtx=canvas.getContext('2d');
+            vInt=setInterval(()=>{
+                if(!isVid||!socket||socket.readyState!==WebSocket.OPEN||isBanned) return;
+                vCtx.drawImage(document.getElementById('preview'),0,0,320,240);
+                socket.send(JSON.stringify({
+                    type:'VIDEO_STREAM',agentId:id,sender:customCallsign,
+                    frame:canvas.toDataURL('image/jpeg',.4)
+                }));
+            },300); // 300ms ≈ ~3fps — optimisé pour bande passante mobile
+        }catch(e){ alert('Caméra inaccessible — vérifiez les permissions.'); }
+    }else{
+        clearInterval(vInt); vInt=null;
+        if(stream) stream.getTracks().forEach(t=>t.stop());
+        document.getElementById('cam-box').style.display='none';
+        isVid=false; btn.style.background='#00f5d4'; btn.innerText='📷 CAM';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MICRO
+// ═══════════════════════════════════════════════════════════════════════════════
+async function toggleMic(){
+    const btn=document.getElementById('mic-btn');
+    if(!isRec){
+        try{
+            const ms=await navigator.mediaDevices.getUserMedia({audio:true});
+            recorder=new MediaRecorder(ms); chunks=[];
+            recorder.ondataavailable=e=>chunks.push(e.data);
+            recorder.onstop=()=>{
+                const blob=new Blob(chunks,{type:'audio/webm'});
+                const rdr=new FileReader(); rdr.readAsDataURL(blob);
+                rdr.onloadend=()=>{
+                    if(!socket||socket.readyState!==WebSocket.OPEN||isBanned) return;
+                    socket.send(JSON.stringify({
+                        type:'TACTICAL_MSG',time:new Date().toLocaleTimeString('fr-FR'),
+                        role,sender:customCallsign,msgType:'voice',content:rdr.result,
+                        targetType:'ALL',targetId:'ALL'
+                    }));
+                };
+                ms.getTracks().forEach(t=>t.stop());
+            };
+            recorder.start(); isRec=true; btn.classList.add('rec'); btn.innerText='⏹ STOP';
+        }catch(e){ alert('Micro inaccessible — vérifiez les permissions.'); }
+    }else{
+        if(recorder&&recorder.state!=='inactive') recorder.stop();
+        isRec=false; btn.classList.remove('rec'); btn.innerText='🎙 VOCAL';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SERVICE WORKER (PWA)
+// ═══════════════════════════════════════════════════════════════════════════════
+if('serviceWorker'in navigator){
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DÉMARRAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+connect();
+</script>
+</body>
+</html>
