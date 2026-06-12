@@ -1,0 +1,16 @@
+{
+  "name": "cats3-system",
+  "version": "4.0.0",
+  "description": "CATS 3 — Tactical Command & Control System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "dependencies": {
+    "express": "^4.22.2",
+    "qrcode": "^1.5.3",
+    "ws": "^8.21.0"
+  }
+}
